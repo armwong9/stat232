@@ -16,7 +16,7 @@ library(evalITR)
 #install.packages("arm")
 #install.packages("bartMachine")
 
-library(bartMachine)
+#library(bartMachine)
 
 
 setwd("C:/school/stat 232/project")
@@ -63,9 +63,6 @@ covars <- c("age.year.", "Gender.M.F.", "Pre..Ob.suture.real.pt.yes.no.", "basel
 vec.pac= c("SuperLearner", "gbm", "glmnet","caret", "xgboost", "randomForest", "KernelKnn", "bartMachine", "e1071")
 
 lapply(vec.pac, require, character.only = TRUE) 
-
-
-
 
 
 #CV Control for the SuperLearner
@@ -133,7 +130,11 @@ S_learner <- function(data,covariates,learners){
   return(score_S)
 }
 
-prop = 20/47
+p = 20
+
+
+prop = p/47
+
 
 # learners indicates which ml alg will be used by the S learner
 
@@ -143,8 +144,10 @@ prop = 20/47
 learners <- c("SL.glmnet")
 cate_lasso <- c(S_learner(df,covars,learners = learners))
 
+cate_lasso <- -(cate_lasso - mean(cate_lasso) )
+
 # 20 highest cate get treatment
-itr_lasso <- order(cate_lasso) > length(cate_lasso)-20
+itr_lasso <- order(cate_lasso) > length(cate_lasso)-p
 
 pape_lasso <- PAPE(df$d, itr_lasso, df$y, plim=prop)
 aupec_lasso <- AUPEC(df$d, cate_lasso, df$y)
@@ -166,8 +169,10 @@ ggplot(data=lasso_df, aes(x=x, y=y, group=1)) +
 learners <- c("SL.randomForest")
 cate_rf <- c(S_learner(df,covars,learners = learners))
 
+cate_rf <- -(cate_rf - mean(cate_rf))
+
 # 20 highest cate get treatment
-itr_rf <- order(cate_rf) > length(cate_rf)-20
+itr_rf <- order(cate_rf) > length(cate_rf)-p
 
 pape_rf <- PAPE(df$d, itr_rf, df$y,plim=prop)
 aupec_rf <- AUPEC(df$d, cate_rf, df$y)
@@ -186,8 +191,10 @@ ggplot(data=rf_df, aes(x=x, y=y, group=1)) +
 learners <- c("SL.xgboost")
 cate_xgboost <- c(S_learner(df,covars,learners = learners))
 
+cate_xgboost <- -(cate_xgboost-mean(cate_xgboost))
+
 # 20 highest cate get treatment
-itr_xgb <- order(cate_xgboost) > length(cate_xgboost)-20
+itr_xgb <- order(cate_xgboost) > length(cate_xgboost)-p
 
 pape_xgb <- PAPE(df$d, itr_xgb, df$y, plim=prop)
 aupec_xgb <- AUPEC(df$d, cate_xgboost, df$y)
@@ -206,8 +213,10 @@ ggplot(data=xgb_df, aes(x=x, y=y, group=1)) +
 learners <- c("SL.kernelKnn")
 cate_kknn <- c(S_learner(df,covars,learners = learners))
 
+cate_kknn <- -(cate_kknn-mean(cate_kknn))
+
 # 20 highest cate get treatment
-itr_kknn <- order(cate_kknn) > length(cate_kknn)-20
+itr_kknn <- order(cate_kknn) > length(cate_kknn)-p
 
 pape_kknn <- PAPE(df$d, itr_kknn, df$y, plim=prop)
 aupec_kknn <- AUPEC(df$d, cate_kknn, df$y)
@@ -226,8 +235,10 @@ ggplot(data=kknn_df, aes(x=x, y=y, group=1)) +
 learners <- c("SL.svm")
 cate_svm <- c(S_learner(df,covars,learners = learners))
 
+cate_svm <- -(cate_svm-mean(cate_svm))
+
 # 20 highest cate get treatment
-itr_svm <- order(cate_svm) > length(cate_svm)-20
+itr_svm <- order(cate_svm) > length(cate_svm)-p
 
 pape_svm <- PAPE(df$d, itr_svm, df$y, plim=prop)
 aupec_svm <- AUPEC(df$d, cate_svm, df$y)
@@ -249,8 +260,10 @@ ggplot(data=svm_df, aes(x=x, y=y, group=1)) +
 learners <- c("SL.bartMachine")
 cate_bart <- c(S_learner(df,covars,learners = learners))
 
+cate_bart <- -(cate_bart-mean(cate_bart))
+
 # 20 highest cate get treatment
-itr_bart <- order(cate_bart) > length(cate_bart)-20
+itr_bart <- order(cate_bart) > length(cate_bart)-p
 
 pape_bart <- PAPE(df$d, itr_bart, df$y, plim=prop)
 aupec_bart <- AUPEC(df$d, cate_bart, df$y)
@@ -258,10 +271,16 @@ aupec_bart <- AUPEC(df$d, cate_bart, df$y)
 bart_df <- data.frame(x=hund_lin, y=lin+aupec_bart$vec)
 
 ggplot(data=bart_df, aes(x=x, y=y, group=1)) +
-  geom_line(color="red")+ 
+  geom_line(color="red")+
   geom_line(aes(y = seq(avg_expert, avg_ai, length.out=length(df$y) ) ),color = "black") +
-  ggtitle("SVM") +
+  ggtitle("BART") +
   xlab("Max Proportion Treated") + ylab("Average OSCE Score")
+
+
+
+
+
+
 
 
 
