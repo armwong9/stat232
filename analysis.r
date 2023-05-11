@@ -7,13 +7,16 @@ library(corrplot)
 
 library(evalITR)
 
+
 #install.packages("xgboost")
 #install.packages("SuperLearner")
 #install.packages("gbm")
 #install.packages("glmnet")
 #install.packages("KernelKnn")
+#install.packages("arm")
+#install.packages("bartMachine")
 
-corrplot(df, method = 'color')
+library(bartMachine)
 
 
 setwd("C:/school/stat 232/project")
@@ -23,8 +26,12 @@ setwd("C:/school/stat 232/project")
 expert <- read.table("./expert.csv", sep=",", header=TRUE)
 expert$d <- 0
 
+avg_expert <- mean(expert$post.bock.OSCE.TP) 
+
 ai <- read.table("./ai.csv", sep=",", header=TRUE)
 ai$d <- 1
+
+avg_ai <- mean(ai$post.bock.OSCE.TP) 
 
 df <- rbind(expert, ai)
 
@@ -35,6 +42,16 @@ df <- df %>% rename("y" = "post.bock.OSCE.TP")
 df$Gender.M.F. <- as.numeric(factor(df$Gender.M.F.))-1
 df$Pre..Ob.suture.real.pt.yes.no. <- as.numeric(factor(df$Pre..Ob.suture.real.pt.yes.no.))-1
 
+
+pape <- c(avg_expert, avg_ai)
+lin <- seq(avg_expert, avg_ai, length.out=length(df$y))
+
+hund_lin <- seq(0, 100, length.out=length(df$y))
+
+
+avg_score <- mean(df$y)
+
+
 # these are the only covariates that can be measured before treatment would be assigned
 
 covars <- c("age.year.", "Gender.M.F.", "Pre..Ob.suture.real.pt.yes.no.", "baseline.confidence.real.pt", "basic.interest.for.surgery")
@@ -43,7 +60,7 @@ covars <- c("age.year.", "Gender.M.F.", "Pre..Ob.suture.real.pt.yes.no.", "basel
 
 # load in some required libraries
 
-vec.pac= c("SuperLearner", "gbm", "glmnet","caret", "xgboost", "randomForest", "KernelKnn")
+vec.pac= c("SuperLearner", "gbm", "glmnet","caret", "xgboost", "randomForest", "KernelKnn", "bartMachine", "e1071")
 
 lapply(vec.pac, require, character.only = TRUE) 
 
@@ -116,7 +133,7 @@ S_learner <- function(data,covariates,learners){
   return(score_S)
 }
 
-
+prop = 20/47
 
 # learners indicates which ml alg will be used by the S learner
 
@@ -129,8 +146,17 @@ cate_lasso <- c(S_learner(df,covars,learners = learners))
 # 20 highest cate get treatment
 itr_lasso <- order(cate_lasso) > length(cate_lasso)-20
 
-pape_lasso <- PAPE(df$d, itr_lasso, df$y)
+pape_lasso <- PAPE(df$d, itr_lasso, df$y, plim=prop)
 aupec_lasso <- AUPEC(df$d, cate_lasso, df$y)
+
+lasso_df <- data.frame(x=hund_lin, y=lin+aupec_lasso$vec)
+
+ggplot(data=lasso_df, aes(x=x, y=y, group=1)) +
+  geom_line(color="red")+ 
+  geom_line(aes(y = seq(avg_expert, avg_ai, length.out=length(df$y) ) ),color = "black") +
+  ggtitle("Lasso") +
+  xlab("Max Proportion Treated") + ylab("Average OSCE Score")
+
 
 
 
@@ -143,9 +169,16 @@ cate_rf <- c(S_learner(df,covars,learners = learners))
 # 20 highest cate get treatment
 itr_rf <- order(cate_rf) > length(cate_rf)-20
 
-pape_rf <- PAPE(df$d, itr_rf, df$y)
+pape_rf <- PAPE(df$d, itr_rf, df$y,plim=prop)
 aupec_rf <- AUPEC(df$d, cate_rf, df$y)
 
+rf_df <- data.frame(x=hund_lin, y=lin+aupec_rf$vec)
+
+ggplot(data=rf_df, aes(x=x, y=y, group=1)) +
+  geom_line(color="red")+ 
+  geom_line(aes(y = seq(avg_expert, avg_ai, length.out=length(df$y) ) ),color = "black") +
+  ggtitle("Random Forest") +
+  xlab("Max Proportion Treated") + ylab("Average OSCE Score")
 
 
 # xgboost
@@ -156,8 +189,16 @@ cate_xgboost <- c(S_learner(df,covars,learners = learners))
 # 20 highest cate get treatment
 itr_xgb <- order(cate_xgboost) > length(cate_xgboost)-20
 
-pape_xgb <- PAPE(df$d, itr_xgb, df$y)
+pape_xgb <- PAPE(df$d, itr_xgb, df$y, plim=prop)
 aupec_xgb <- AUPEC(df$d, cate_xgboost, df$y)
+
+xgb_df <- data.frame(x=hund_lin, y=lin+aupec_xgb$vec)
+
+ggplot(data=xgb_df, aes(x=x, y=y, group=1)) +
+  geom_line(color="red")+ 
+  geom_line(aes(y = seq(avg_expert, avg_ai, length.out=length(df$y) ) ),color = "black") +
+  ggtitle("XGBoost") +
+  xlab("Max Proportion Treated") + ylab("Average OSCE Score")
 
 
 # kernel Knn
@@ -168,8 +209,59 @@ cate_kknn <- c(S_learner(df,covars,learners = learners))
 # 20 highest cate get treatment
 itr_kknn <- order(cate_kknn) > length(cate_kknn)-20
 
-pape_kknn <- PAPE(df$d, itr_kknn, df$y)
+pape_kknn <- PAPE(df$d, itr_kknn, df$y, plim=prop)
 aupec_kknn <- AUPEC(df$d, cate_kknn, df$y)
+
+kknn_df <- data.frame(x=hund_lin, y=lin+aupec_kknn$vec)
+
+ggplot(data=kknn_df, aes(x=x, y=y, group=1)) +
+  geom_line(color="red")+ 
+  geom_line(aes(y = seq(avg_expert, avg_ai, length.out=length(df$y) ) ),color = "black") +
+  ggtitle("Kernal KNN") +
+  xlab("Max Proportion Treated") + ylab("Average OSCE Score")
+
+
+# SVM
+
+learners <- c("SL.svm")
+cate_svm <- c(S_learner(df,covars,learners = learners))
+
+# 20 highest cate get treatment
+itr_svm <- order(cate_svm) > length(cate_svm)-20
+
+pape_svm <- PAPE(df$d, itr_svm, df$y, plim=prop)
+aupec_svm <- AUPEC(df$d, cate_svm, df$y)
+
+svm_df <- data.frame(x=hund_lin, y=lin+aupec_svm$vec)
+
+ggplot(data=svm_df, aes(x=x, y=y, group=1)) +
+  geom_line(color="red")+ 
+  geom_line(aes(y = seq(avg_expert, avg_ai, length.out=length(df$y) ) ),color = "black") +
+  ggtitle("SVM") +
+  xlab("Max Proportion Treated") + ylab("Average OSCE Score")
+
+
+
+
+
+# bart
+
+learners <- c("SL.bartMachine")
+cate_bart <- c(S_learner(df,covars,learners = learners))
+
+# 20 highest cate get treatment
+itr_bart <- order(cate_bart) > length(cate_bart)-20
+
+pape_bart <- PAPE(df$d, itr_bart, df$y, plim=prop)
+aupec_bart <- AUPEC(df$d, cate_bart, df$y)
+
+bart_df <- data.frame(x=hund_lin, y=lin+aupec_bart$vec)
+
+ggplot(data=bart_df, aes(x=x, y=y, group=1)) +
+  geom_line(color="red")+ 
+  geom_line(aes(y = seq(avg_expert, avg_ai, length.out=length(df$y) ) ),color = "black") +
+  ggtitle("SVM") +
+  xlab("Max Proportion Treated") + ylab("Average OSCE Score")
 
 
 
